@@ -62,6 +62,9 @@ void	page_decref(struct PageInfo *pp);
 
 void	tlb_invalidate(pde_t *pgdir, void *va);
 
+//lab2 challenge
+void    show_mappings(int n, uintptr_t *addrs);
+
 static inline physaddr_t
 page2pa(struct PageInfo *pp)
 {

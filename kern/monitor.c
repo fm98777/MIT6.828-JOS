@@ -10,6 +10,7 @@
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
+#include <kern/pmap.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -24,7 +25,8 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
-	{ "backtrace", "Stack backtrace", mon_backtrace}
+	{ "backtrace", "Stack backtrace", mon_backtrace},
+	{ "showmappings", "Display mapping info. Input:\"showmappings 0x400 0xf00c\"", mon_showmappings}
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -36,6 +38,39 @@ mon_help(int argc, char **argv, struct Trapframe *tf)
 
 	for (i = 0; i < ARRAY_SIZE(commands); i++)
 		cprintf("%s - %s\n", commands[i].name, commands[i].desc);
+	return 0;
+}
+
+int
+mon_showmappings(int argc, char **argv, struct Trapframe *tf)
+{
+	int i, j, len;
+	char c;
+	uintptr_t addr[8] = {0};
+
+	if (argc < 2 || argc > 9) {
+		goto show_mappings_error;
+	}
+	for (i = 1; i < argc; i++) {
+		len = strlen(argv[i]);
+		if (len < 3 || len > 10 || argv[i][0] != '0' || argv[i][1] != 'x') {
+			goto show_mappings_error;
+		}
+		for (j = len - 1; j > 1; j--) {
+			c = argv[i][j];
+			if (c <= '9' && c >= '0') {
+				addr[i - 1] += (c - '0') << (4 *  (len - j - 1));
+			} else if (c <= 'f' && c >= 'a') {
+				addr[i - 1] += (c - 87) << (4 * (len - j - 1));
+			} else {
+				goto show_mappings_error;
+			}
+		}
+	}
+	show_mappings(argc - 1, addr);
+	return 0;
+show_mappings_error:
+		cprintf("Don't input  more than 8 32-bit hex virtual addresses\n");
 	return 0;
 }
 

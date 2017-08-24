@@ -932,3 +932,32 @@ check_page_installed_pgdir(void)
 
 	cprintf("check_page_installed_pgdir() succeeded!\n");
 }
+
+void
+show_mappings(int n, uintptr_t *addrs)
+{
+	int i;
+	pte_t *pte;;
+
+	cprintf("VA:         PA:         PERM BITS:\n");
+	for (i = 0; i < n; i++) {
+		cprintf("0x%08x  ", addrs[i]);
+		pte = pgdir_walk(kern_pgdir, (void *)addrs[i], 0);
+		if (!pte || !(*pte & PTE_P)) {
+			cprintf("No mapped!\n");
+			continue;
+		}
+		cprintf("0x%08x  ", PTE_ADDR(*pte) + PGOFF(addrs[i]));
+		if (*pte & PTE_W) {
+			cprintf("PTE_W|");
+		} else {
+			cprintf("PTE_R|");
+		}
+		if (*pte & PTE_U) {
+			cprintf("PTE_U|");
+		} else {
+			cprintf("PTE_S|");
+		}
+		cprintf("\n");
+	}
+}
