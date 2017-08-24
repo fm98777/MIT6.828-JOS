@@ -102,8 +102,13 @@ boot_alloc(uint32_t n)
 	// to a multiple of PGSIZE.
 	//
 	// LAB 2: Your code here.
-
-	return NULL;
+	
+	if ((ROUNDUP((char *)nextfree + n, PGSIZE) > (char *)(npages * PGSIZE + KERNBASE))) {
+		panic("In boot_alloc():out of memory\n");
+	}
+	result = nextfree;
+	nextfree = ROUNDUP((char *)nextfree + n, PGSIZE);	
+	return result;
 }
 
 // Set up a two-level page table:
@@ -125,7 +130,7 @@ mem_init(void)
 	i386_detect_memory();
 
 	// Remove this line when you're ready to test this function.
-	panic("mem_init: This function is not finished\n");
+	//panic("mem_init: This function is not finished\n");
 
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
@@ -148,8 +153,8 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
-
-
+	pages = (struct PageInfo *)boot_alloc(npages * sizeof(struct PageInfo));
+	memset(pages, 0, npages * sizeof(struct PageInfo));
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
 	// up the list of free physical pages. Once we've done so, all further
@@ -252,10 +257,29 @@ page_init(void)
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
 	size_t i;
+	size_t io_i, ext_i, free_i;
+
 	for (i = 0; i < npages; i++) {
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
 		page_free_list = &pages[i];
+	}
+	//this 1)
+	pages[1].pp_link = NULL;
+	pages[0].pp_link = NULL;
+	//this 2)
+	//this 3)
+	io_i = IOPHYSMEM / PGSIZE;
+	ext_i = EXTPHYSMEM / PGSIZE;
+	pages[ext_i].pp_link = pages[io_i].pp_link;
+	for (i = io_i; i < ext_i; i++) {
+		pages[i].pp_link = NULL;
+	}
+	//this 4)
+	free_i = PADDR(boot_alloc(0)) / PGSIZE;
+	pages[free_i].pp_link = pages[ext_i].pp_link;
+	for (i = ext_i; i < free_i; i++) {
+		pages[i].pp_link = NULL;
 	}
 }
 
@@ -274,8 +298,18 @@ page_init(void)
 struct PageInfo *
 page_alloc(int alloc_flags)
 {
-	// Fill this function in
-	return 0;
+	struct PageInfo *p = page_free_list;
+
+	//out of memory
+	if (!p) {
+		return NULL;
+	}
+	page_free_list = p->pp_link;
+	p->pp_link = NULL;
+	if (alloc_flags & ALLOC_ZERO) {
+		memset(page2kva(p), 0, PGSIZE);
+	}
+	return p;
 }
 
 //
@@ -288,6 +322,11 @@ page_free(struct PageInfo *pp)
 	// Fill this function in
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
+	if (pp->pp_ref != 0 || pp->pp_link != NULL) {
+		panic("In page_free: pp_link or pp_ref is nonzero");
+	}
+	pp->pp_link = page_free_list;
+	page_free_list = pp;
 }
 
 //
@@ -327,9 +366,23 @@ pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
 	// Fill this function in
-	return NULL;
-}
+	pde_t *pde = pgdir + PDX(va);
+	struct PageInfo *page;
 
+	//Page Frame Address is physical address!
+	if (!(*pde & PTE_P)) {
+		if (!create) {
+			return NULL;
+		}
+		page = page_alloc(ALLOC_ZERO);
+		if (!page) {
+			return NULL;
+		}
+		*pde = page2pa(page) | PTE_P | PTE_W | PTE_U;
+        page->pp_ref += 1;
+	}
+	return ((pte_t *)KADDR(PTE_ADDR(*pde))) + PTX(va);
+}
 //
 // Map [va, va+size) of virtual address space to physical [pa, pa+size)
 // in the page table rooted at pgdir.  Size is a multiple of PGSIZE, and
@@ -345,6 +398,16 @@ static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
+	int i;
+	pde_t *pde;
+	pte_t *pte;
+
+	for (i = 0; i < size / PGSIZE; i++) {
+		pte = pgdir_walk(pgdir, (void *)(va + i * PGSIZE), 1);
+		if (pte) {
+			*pte = (pa + i * PGSIZE) | perm | PTE_P;
+		}
+	}
 }
 
 //
@@ -376,6 +439,19 @@ int
 page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
 	// Fill this function in
+	pte_t *pte = pgdir_walk(pgdir, va, 1);
+    
+    // alloc failed
+    if (!pte) {
+        return -E_NO_MEM;
+    }
+    // avoid corner-case that pp is freed before inserted
+    pp->pp_ref++;
+    // entry will be 0 when not mapped
+	if (*pte) {
+		page_remove(pgdir, va);
+	}
+    *pte = page2pa(pp) | perm | PTE_P;
 	return 0;
 }
 
@@ -394,7 +470,15 @@ struct PageInfo *
 page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 {
 	// Fill this function in
-	return NULL;
+	pte_t *pte = pgdir_walk(pgdir, va, 0);
+
+	if (!pte) {
+		return NULL;
+	}
+	if (pte_store) {
+		*pte_store = pte;
+	}
+	return pa2page(PTE_ADDR(*pte));
 }
 
 //
@@ -416,6 +500,15 @@ void
 page_remove(pde_t *pgdir, void *va)
 {
 	// Fill this function in
+	pte_t *pte;
+	struct PageInfo *page = page_lookup(pgdir, va, &pte);
+
+	if (!page) {
+		return;
+	}
+	page_decref(page);
+	*pte = 0;
+	tlb_invalidate(pgdir, va);
 }
 
 //
