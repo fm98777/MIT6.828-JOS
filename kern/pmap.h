@@ -65,6 +65,8 @@ void	tlb_invalidate(pde_t *pgdir, void *va);
 
 int	user_mem_check(struct Env *env, const void *va, size_t len, int perm);
 void	user_mem_assert(struct Env *env, const void *va, size_t len, int perm);
+//lab2 challenge
+void    show_mappings(int n, uintptr_t *addrs);
 
 static inline physaddr_t
 page2pa(struct PageInfo *pp)
