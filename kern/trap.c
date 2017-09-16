@@ -9,6 +9,26 @@
 #include <kern/env.h>
 #include <kern/syscall.h>
 
+
+/* trap handlers */
+void th0();
+void th1();
+void th3();
+void th4();
+void th5();
+void th6();
+void th7();
+void th8();
+void th10();
+void th11();
+void th12();
+void th13();
+void th14();
+void th16();
+void th17();
+void th18();
+void th19();
+
 static struct Taskstate ts;
 
 /* For debugging, so print_trapframe can distinguish between printing
@@ -66,6 +86,24 @@ trap_init(void)
 
 	// LAB 3: Your code here.
 
+	//vectors 0-31 are exceptions
+	SETGATE(idt[0], 0, GD_KT, th0, 0);
+	SETGATE(idt[1], 0, GD_KT, th1, 0);
+	SETGATE(idt[3], 0, GD_KT, th3, 0);
+	SETGATE(idt[4], 0, GD_KT, th4, 0);
+	SETGATE(idt[5], 0, GD_KT, th5, 0);
+	SETGATE(idt[6], 0, GD_KT, th6, 0);
+	SETGATE(idt[7], 0, GD_KT, th7, 0);
+	SETGATE(idt[8], 0, GD_KT, th8, 0);
+	SETGATE(idt[10], 0, GD_KT, th10, 0);
+	SETGATE(idt[11], 0, GD_KT, th11, 0);
+	SETGATE(idt[12], 0, GD_KT, th12, 0);
+	SETGATE(idt[13], 0, GD_KT, th13, 0);
+	SETGATE(idt[14], 0, GD_KT, th14, 0);
+	SETGATE(idt[16], 0, GD_KT, th16, 0);
+	SETGATE(idt[17], 0, GD_KT, th17, 0);
+	SETGATE(idt[18], 0, GD_KT, th18, 0);
+	SETGATE(idt[19], 0, GD_KT, th19, 0);	
 	// Per-CPU setup 
 	trap_init_percpu();
 }

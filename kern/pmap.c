@@ -124,7 +124,8 @@ void
 mem_init(void)
 {
 	uint32_t cr0;
-	size_t n;
+	int i;
+	size_t pn, en;
 
 	// Find out how much memory the machine has (npages & npages_basemem).
 	i386_detect_memory();
@@ -153,13 +154,13 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
-    n = npages * sizeof(struct PageInfo);
-	pages = (struct PageInfo *)boot_alloc(n);
-	memset(pages, 0, n);
+    pn = ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE);
+	pages = (struct PageInfo *)boot_alloc(pn);
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
 	// LAB 3: Your code here.
-
+	en = ROUNDUP(NENV * sizeof(struct Env), PGSIZE);
+	envs = (struct Env *)boot_alloc(en);
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
 	// up the list of free physical pages. Once we've done so, all further
@@ -182,7 +183,7 @@ mem_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region(kern_pgdir, UPAGES, n, PADDR(pages), PTE_U);
+	boot_map_region(kern_pgdir, UPAGES, pn, PADDR(pages), PTE_U | PTE_P);
 	//////////////////////////////////////////////////////////////////////
 	// Map the 'envs' array read-only by the user at linear address UENVS
 	// (ie. perm = PTE_U | PTE_P).
@@ -190,7 +191,7 @@ mem_init(void)
 	//    - the new image at UENVS  -- kernel R, user R
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
-
+	boot_map_region(kern_pgdir, UENVS, en, PADDR(envs), PTE_U | PTE_P);
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
 	// stack.  The kernel stack grows down from virtual address KSTACKTOP.
@@ -224,7 +225,6 @@ mem_init(void)
 	//
 	// If the machine reboots at this point, you've probably set up your
 	// kern_pgdir wrong.
-    cprintf("hello\n");
 	lcr3(PADDR(kern_pgdir));
 
 	check_page_free_list(0);
@@ -274,6 +274,7 @@ page_init(void)
 	size_t i;
 	size_t io_i, ext_i, free_i;
 
+	memset(pages, 0, ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE));
 	for (i = 0; i < npages; i++) {
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
