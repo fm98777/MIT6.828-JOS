@@ -12,6 +12,7 @@
 #include <kern/kdebug.h>
 #include <kern/trap.h>
 #include <kern/pmap.h>
+#include <kern/env.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -27,7 +28,9 @@ static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Stack backtrace", mon_backtrace},
-	{ "showmappings", "Display mapping info. Input:\"showmappings 0x400 0xf00c\"", mon_showmappings}
+	{ "showmappings", "Display mapping info. Input:\"showmappings 0x400 0xf00c\"", mon_showmappings},
+	{ "continue", "Continue in debug", mon_continue},
+	{ "stepi", "Single-step in debug", mon_stepi}
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -42,6 +45,40 @@ mon_help(int argc, char **argv, struct Trapframe *tf)
 	return 0;
 }
 
+/* Continue in debug */
+int
+mon_continue(int argc, char **argv, struct Trapframe *tf)
+{
+	if (argc > 1) {
+		cprintf("Should be no arguments\n");
+		return 1;
+	}
+	if (!tf) {
+		cprintf("continue error: Trapframe is null\n");
+		return 1;
+	}	
+	tf->tf_eflags &= ~FL_TF;
+	//tf->tf_eflags |= FL_RF;
+	return -1;	// this cause monitor exit, which end breakpoint 
+}
+
+/* Single-step in debug, breakpoint after each instruction */
+int
+mon_stepi(int argc, char **argv, struct Trapframe *tf)
+{
+	if (argc > 1) {
+		cprintf("Should be no arguments\n");
+		return 1;
+	}
+	if (!tf) {
+		cprintf("continue error: Trapframe is null\n");
+		return 1;
+	}
+	tf->tf_eflags |= FL_TF;
+	return -1;
+}
+
+/* Input virtual address to show physical address and perm bits */
 int
 mon_showmappings(int argc, char **argv, struct Trapframe *tf)
 {
