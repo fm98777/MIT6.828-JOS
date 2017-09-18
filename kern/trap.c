@@ -14,6 +14,27 @@
 #include <kern/cpu.h>
 #include <kern/spinlock.h>
 
+
+/* trap handlers */
+void th0();
+void th1();
+void th3();
+void th4();
+void th5();
+void th6();
+void th7();
+void th8();
+void th10();
+void th11();
+void th12();
+void th13();
+void th14();
+void th16();
+void th17();
+void th18();
+void th19();
+void th48();
+
 static struct Taskstate ts;
 
 /* For debugging, so print_trapframe can distinguish between printing
@@ -73,6 +94,25 @@ trap_init(void)
 
 	// LAB 3: Your code here.
 
+	//vectors 0-31 are exceptions
+	SETGATE(idt[T_DIVIDE], 0, GD_KT, th0, 0);
+	SETGATE(idt[T_DEBUG], 0, GD_KT, th1, 0);
+	SETGATE(idt[T_BRKPT], 0, GD_KT, th3, 3);	// user can use breakpoint 
+	SETGATE(idt[T_OFLOW], 0, GD_KT, th4, 0);
+	SETGATE(idt[T_BOUND], 0, GD_KT, th5, 0);
+	SETGATE(idt[T_ILLOP], 0, GD_KT, th6, 0);
+	SETGATE(idt[T_DEVICE], 0, GD_KT, th7, 0);
+	SETGATE(idt[T_DBLFLT], 0, GD_KT, th8, 0);
+	SETGATE(idt[T_TSS], 0, GD_KT, th10, 0);
+	SETGATE(idt[T_SEGNP], 0, GD_KT, th11, 0);
+	SETGATE(idt[T_STACK], 0, GD_KT, th12, 0);
+	SETGATE(idt[T_GPFLT], 0, GD_KT, th13, 0);
+	SETGATE(idt[T_PGFLT], 0, GD_KT, th14, 0);
+	SETGATE(idt[T_FPERR], 0, GD_KT, th16, 0);
+	SETGATE(idt[T_ALIGN], 0, GD_KT, th17, 0);
+	SETGATE(idt[T_MCHK], 0, GD_KT, th18, 0);
+	SETGATE(idt[T_SIMDERR], 0, GD_KT, th19, 0);	
+	SETGATE(idt[T_SYSCALL], 0, GD_KT, th48, 3);	//syscall
 	// Per-CPU setup 
 	trap_init_percpu();
 }
@@ -174,7 +214,31 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
-
+	switch (tf->tf_trapno) {
+	case T_BRKPT:
+		monitor(tf);
+		break;
+	case T_PGFLT:
+		page_fault_handler(tf);
+		break;
+	case T_SYSCALL:
+		tf->tf_regs.reg_eax = syscall(tf->tf_regs.reg_eax, 
+								tf->tf_regs.reg_edx,
+								tf->tf_regs.reg_ecx,
+								tf->tf_regs.reg_ebx,
+								tf->tf_regs.reg_edi,
+								tf->tf_regs.reg_esi);
+		break;
+	default:
+			// Unexpected trap: The user process or the kernel has a bug.
+		print_trapframe(tf);
+		if (tf->tf_cs == GD_KT)
+			panic("unhandled trap in kernel");
+		else {
+			env_destroy(curenv);
+			return;
+		}
+	}
 	// Handle spurious interrupts
 	// The hardware sometimes raises these because of noise on the
 	// IRQ line or other reasons. We don't care.
@@ -269,6 +333,9 @@ page_fault_handler(struct Trapframe *tf)
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
+	if ((tf->tf_cs & 3) == 0) {
+		panic("Page fault in kernel\n");
+	}
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.

@@ -166,7 +166,7 @@ cga_putc(int c)
 {
 	// if no attribute given, then use black on white
 	if (!(c & ~0xFF))
-		c |= 0x0700;
+		c |= 0x700;
 
 	switch (c & 0xff) {
 	case '\b':
@@ -199,7 +199,7 @@ cga_putc(int c)
 
 		memmove(crt_buf, crt_buf + CRT_COLS, (CRT_SIZE - CRT_COLS) * sizeof(uint16_t));
 		for (i = CRT_SIZE - CRT_COLS; i < CRT_SIZE; i++)
-			crt_buf[i] = 0x0700 | ' ';
+			crt_buf[i] = 0x700 | ' ';
 		crt_pos -= CRT_COLS;
 	}
 

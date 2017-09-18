@@ -11,6 +11,8 @@
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
 #include <kern/trap.h>
+#include <kern/pmap.h>
+#include <kern/env.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -25,6 +27,10 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+	{ "backtrace", "Stack backtrace", mon_backtrace},
+	{ "showmappings", "Display mapping info. Input:\"showmappings 0x400 0xf00c\"", mon_showmappings},
+	{ "continue", "Continue in debug", mon_continue},
+	{ "stepi", "Single-step in debug", mon_stepi}
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -36,6 +42,73 @@ mon_help(int argc, char **argv, struct Trapframe *tf)
 
 	for (i = 0; i < ARRAY_SIZE(commands); i++)
 		cprintf("%s - %s\n", commands[i].name, commands[i].desc);
+	return 0;
+}
+
+/* Continue in debug */
+int
+mon_continue(int argc, char **argv, struct Trapframe *tf)
+{
+	if (argc > 1) {
+		cprintf("Should be no arguments\n");
+		return 1;
+	}
+	if (!tf) {
+		cprintf("continue error: Trapframe is null\n");
+		return 1;
+	}	
+	tf->tf_eflags &= ~FL_TF;
+	//tf->tf_eflags |= FL_RF;
+	return -1;	// this cause monitor exit, which end breakpoint 
+}
+
+/* Single-step in debug, breakpoint after each instruction */
+int
+mon_stepi(int argc, char **argv, struct Trapframe *tf)
+{
+	if (argc > 1) {
+		cprintf("Should be no arguments\n");
+		return 1;
+	}
+	if (!tf) {
+		cprintf("continue error: Trapframe is null\n");
+		return 1;
+	}
+	tf->tf_eflags |= FL_TF;
+	return -1;
+}
+
+/* Input virtual address to show physical address and perm bits */
+int
+mon_showmappings(int argc, char **argv, struct Trapframe *tf)
+{
+	int i, j, len;
+	char c;
+	uintptr_t addr[8] = {0};
+
+	if (argc < 2 || argc > 9) {
+		goto show_mappings_error;
+	}
+	for (i = 1; i < argc; i++) {
+		len = strlen(argv[i]);
+		if (len < 3 || len > 10 || argv[i][0] != '0' || argv[i][1] != 'x') {
+			goto show_mappings_error;
+		}
+		for (j = len - 1; j > 1; j--) {
+			c = argv[i][j];
+			if (c <= '9' && c >= '0') {
+				addr[i - 1] += (c - '0') << (4 *  (len - j - 1));
+			} else if (c <= 'f' && c >= 'a') {
+				addr[i - 1] += (c - 87) << (4 * (len - j - 1));
+			} else {
+				goto show_mappings_error;
+			}
+		}
+	}
+	show_mappings(argc - 1, addr);
+	return 0;
+show_mappings_error:
+		cprintf("Don't input  more than 8 32-bit hex virtual addresses\n");
 	return 0;
 }
 
@@ -59,6 +132,24 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
 	// Your code here.
+	uint32_t eip, ebp, arg;
+	int i;
+	struct Eipdebuginfo info;
+
+	ebp = read_ebp();
+	for (; ebp != 0; ebp = *((uint32_t *)ebp)) {
+		eip = ((uint32_t *)ebp)[1];
+		cprintf("ebp %08x  eip %08x  args", ebp, eip);
+		for (i = 0; i < 5; i++) {
+			arg = *((uint32_t *)ebp + 2 + i);
+			cprintf(" %08x", arg);
+		}
+		cprintf("\n");
+		debuginfo_eip(eip, &info);
+		cprintf("       %s:%d: %.*s+%d\n", info.eip_file, info.eip_line
+									, info.eip_fn_namelen, info.eip_fn_name
+									, eip - info.eip_fn_addr);
+	}
 	return 0;
 }
 
