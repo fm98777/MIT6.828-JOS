@@ -33,7 +33,7 @@ extern physaddr_t lapicaddr;        // Physical MMIO address of the local APIC
 
 // Per-CPU kernel stacks
 extern unsigned char percpu_kstacks[NCPU][KSTKSIZE];
-
+// Return CPU ID that calls it
 int cpunum(void);
 #define thiscpu (&cpus[cpunum()])
 

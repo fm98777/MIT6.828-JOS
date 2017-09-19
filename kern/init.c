@@ -78,7 +78,7 @@ boot_aps(void)
 	extern unsigned char mpentry_start[], mpentry_end[];
 	void *code;
 	struct CpuInfo *c;
-
+	cprintf("!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n");
 	// Write entry code to unused memory at MPENTRY_PADDR
 	code = KADDR(MPENTRY_PADDR);
 	memmove(code, mpentry_start, mpentry_end - mpentry_start);

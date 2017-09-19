@@ -306,30 +306,24 @@ page_init(void)
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
 	size_t i;
-	size_t io_i, ext_i, free_i;
+	size_t io_i = PGNUM(IOPHYSMEM);
+	size_t ext_i = PGNUM(EXTPHYSMEM);
+	size_t free_i = PGNUM(PADDR(boot_alloc(0)));
 
 	memset(pages, 0, ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE));
 	for (i = 0; i < npages; i++) {
+		// dig some holes...
+		// page 0 and MPENTRY_PADDR
+		if (i == 0 || i == PGNUM(MPENTRY_PADDR)
+					|| (i >= io_i && i < ext_i) 		// 640K - 1M
+					|| (i >= ext_i && i < free_i)) {	// 1M - used kernel top
+			pages[i].pp_link = NULL;
+			pages[i].pp_ref = 0;
+			continue;
+		}
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
 		page_free_list = &pages[i];
-	}
-	//this 1)
-	pages[1].pp_link = NULL;
-	pages[0].pp_link = NULL;
-	//this 2)
-	//this 3)
-	io_i = IOPHYSMEM / PGSIZE;
-	ext_i = EXTPHYSMEM / PGSIZE;
-	pages[ext_i].pp_link = pages[io_i].pp_link;
-	for (i = io_i; i < ext_i; i++) {
-		pages[i].pp_link = NULL;
-	}
-	//this 4)
-	free_i = PADDR(boot_alloc(0)) / PGSIZE;
-	pages[free_i].pp_link = pages[ext_i].pp_link;
-	for (i = ext_i; i < free_i; i++) {
-		pages[i].pp_link = NULL;
 	}
 }
 
@@ -605,7 +599,15 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Hint: The staff solution uses boot_map_region.
 	//
 	// Your code here:
-	panic("mmio_map_region not implemented");
+	uintptr_t cur = base;
+
+	base += ROUNDUP(size, PGSIZE);
+	if (base > MMIOLIM) {
+		panic("MMIO overflow");
+	}
+	// MMIOBASE is aligned, size is aligned, so base is always aligned
+	boot_map_region(kern_pgdir, cur, ROUNDUP(size, PGSIZE), pa, PTE_PCD | PTE_PWT | PTE_W);
+	return (void *)cur;
 }
 
 static uintptr_t user_mem_check_addr;
