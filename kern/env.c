@@ -547,13 +547,15 @@ env_run(struct Env *e)
     
     if (e != curenv) {
         if (curenv && curenv->env_status == ENV_RUNNING) {
-            curenv->env_status == ENV_RUNNABLE;
+            curenv->env_status = ENV_RUNNABLE;
         }
         curenv = e;
         e->env_status = ENV_RUNNING;
         e->env_runs++;
         lcr3(PADDR(e->env_pgdir));
     }
+	// unlock before switching to user mode
+	unlock_kernel();
     env_pop_tf(&(e->env_tf));
 }
 
