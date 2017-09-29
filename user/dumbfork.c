@@ -14,7 +14,6 @@ umain(int argc, char **argv)
 
 	// fork a child process
 	who = dumbfork();
-
 	// print a message and yield to the other a few times
 	for (i = 0; i < (who ? 10 : 20); i++) {
 		cprintf("%d: I am the %s!\n", i, who ? "parent" : "child");

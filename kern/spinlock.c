@@ -60,6 +60,8 @@ __spin_initlock(struct spinlock *lk, char *name)
 void
 spin_lock(struct spinlock *lk)
 {
+
+	// didn't disable interrupt here, though it should....
 #ifdef DEBUG_SPINLOCK
 	if (holding(lk))
 		panic("CPU %d cannot acquire %s: already holding", cpunum(), lk->name);

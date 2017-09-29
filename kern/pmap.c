@@ -498,7 +498,7 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
     }
     // avoid corner-case that pp is freed before inserted
     pp->pp_ref++;
-    // entry will be 0 when not mapped
+    // already mapped, remove it
 	if (*pte) {
 		page_remove(pgdir, va);
 	}
