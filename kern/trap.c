@@ -375,7 +375,7 @@ page_fault_handler(struct Trapframe *tf)
 
 	if (curenv->env_pgfault_upcall) {
 		// when page fault happend recursively
-		if (tf->tf_esp >= UXSTACKTOP - PTSIZE && tf->tf_esp < UXSTACKTOP) {
+		if ((tf->tf_esp >= UXSTACKTOP - PGSIZE) && (tf->tf_esp < UXSTACKTOP)) {
 			// leave an extra word
 			uxstop = tf->tf_esp - 4;
 		} else {
