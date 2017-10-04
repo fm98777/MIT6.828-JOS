@@ -332,7 +332,51 @@ static int
 sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 {
 	// LAB 4: Your code here.
-	panic("sys_ipc_try_send not implemented");
+	//panic("sys_ipc_try_send not implemented");
+	int r;
+    struct Env *e;
+    struct PageInfo *p;
+	pte_t *pte;
+    int perm_check = (((perm & (PTE_U | PTE_P)) != (PTE_U | PTE_P))
+                        || (perm & (~PTE_SYSCALL)));
+
+	r = envid2env(envid, &e, 0);
+	if (r < 0) {
+		return -E_BAD_ENV;
+	}
+	if (!(e->env_ipc_recving)) {
+		return -E_IPC_NOT_RECV;
+    }
+
+    p = page_lookup(curenv->env_pgdir, srcva, &pte);
+    if ((uintptr_t)srcva < UTOP) {
+        if ((ROUNDDOWN(srcva, PGSIZE) != srcva)
+                || perm_check
+                || (!p)) {
+            return -E_INVAL;
+        }
+        // only when both srcva and dstva are less 
+        // than UTOP we could share a page
+        if ((uintptr_t)(e->env_ipc_dstva) < UTOP
+                && page_insert(e->env_pgdir, p, e->env_ipc_dstva, perm)) {
+            return -E_NO_MEM;
+        }
+    }
+	if ((perm & PTE_W) && (!((*pte) & PTE_W))) {
+		return -E_INVAL;
+    }
+
+    e->env_ipc_recving = 0;
+    e->env_ipc_from = curenv->env_id;
+    e->env_ipc_value = value;
+    if ((uintptr_t)(e->env_ipc_dstva) < UTOP && (uintptr_t)srcva < UTOP) {
+        // if a page was transferred
+        e->env_ipc_perm = perm;
+    } else {
+        e->env_ipc_perm = 0;
+    }
+    e->env_status = ENV_RUNNABLE;
+	return 0;
 }
 
 // Block until a value is ready.  Record that you want to receive
@@ -350,7 +394,20 @@ static int
 sys_ipc_recv(void *dstva)
 {
 	// LAB 4: Your code here.
-	panic("sys_ipc_recv not implemented");
+	//panic("sys_ipc_recv not implemented");
+	
+	// it's ok when dstva > UTOP, because that means we don't want to share
+	// a page, just send a int32 value.
+	if ((uintptr_t)dstva < UTOP && ROUNDDOWN(dstva, PGSIZE) != dstva) {
+		return -E_INVAL;
+	}
+	
+	curenv->env_ipc_recving = true;
+	curenv->env_ipc_dstva = dstva;
+	curenv->env_status = ENV_NOT_RUNNABLE;
+	// user system call returns 0 on success
+	curenv->env_tf.tf_regs.reg_eax = 0;
+	sched_yield();
 	return 0;
 }
 

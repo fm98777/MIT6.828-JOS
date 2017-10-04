@@ -134,6 +134,14 @@ fork(void)
 	if (childeid < 0) {
 		panic("sys_exofork failed: %e", childeid);
 	}
+	// remember to set thisenv in child process...
+	if (childeid == 0) {
+		// we have set upcall in parent, now regist the core handler
+		// to upcall point
+		set_pgfault_handler(pgfault);
+		thisenv = &envs[ENVX(sys_getenvid())];
+		return 0;
+	}
 	// don't map exception stack because we should alloc it
 	for (va = 0; va < USTACKTOP; va += PGSIZE) {
 		if ((uvpd[PDX(va)] & PTE_P) && (uvpt[PGNUM(va)] & PTE_P)) {

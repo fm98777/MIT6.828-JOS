@@ -16,24 +16,30 @@
 
 
 /* trap handlers */
-void th0();
-void th1();
-void th3();
-void th4();
-void th5();
-void th6();
-void th7();
-void th8();
-void th10();
-void th11();
-void th12();
-void th13();
-void th14();
-void th16();
-void th17();
-void th18();
-void th19();
-void th48();
+void handler0();
+void handler1();
+void handler3();
+void handler4();
+void handler5();
+void handler6();
+void handler7();
+void handler8();
+void handler10();
+void handler11();
+void handler12();
+void handler13();
+void handler14();
+void handler16();
+void handler17();
+void handler18();
+void handler19();
+void handler32();
+void handler33();
+void handler36();
+void handler39();
+void handler46();
+void handler51();
+void handler48();
 
 static struct Taskstate ts;
 
@@ -94,25 +100,35 @@ trap_init(void)
 
 	// LAB 3: Your code here.
 
-	//vectors 0-31 are exceptions
-	SETGATE(idt[T_DIVIDE], 0, GD_KT, th0, 0);
-	SETGATE(idt[T_DEBUG], 0, GD_KT, th1, 0);
-	SETGATE(idt[T_BRKPT], 0, GD_KT, th3, 3);	// user can use breakpoint 
-	SETGATE(idt[T_OFLOW], 0, GD_KT, th4, 0);
-	SETGATE(idt[T_BOUND], 0, GD_KT, th5, 0);
-	SETGATE(idt[T_ILLOP], 0, GD_KT, th6, 0);
-	SETGATE(idt[T_DEVICE], 0, GD_KT, th7, 0);
-	SETGATE(idt[T_DBLFLT], 0, GD_KT, th8, 0);
-	SETGATE(idt[T_TSS], 0, GD_KT, th10, 0);
-	SETGATE(idt[T_SEGNP], 0, GD_KT, th11, 0);
-	SETGATE(idt[T_STACK], 0, GD_KT, th12, 0);
-	SETGATE(idt[T_GPFLT], 0, GD_KT, th13, 0);
-	SETGATE(idt[T_PGFLT], 0, GD_KT, th14, 0);
-	SETGATE(idt[T_FPERR], 0, GD_KT, th16, 0);
-	SETGATE(idt[T_ALIGN], 0, GD_KT, th17, 0);
-	SETGATE(idt[T_MCHK], 0, GD_KT, th18, 0);
-	SETGATE(idt[T_SIMDERR], 0, GD_KT, th19, 0);	
-	SETGATE(idt[T_SYSCALL], 0, GD_KT, th48, 3);	//syscall
+	// though vectors 0-31 are exceptions, istrap option is still 0
+	// because JOS disable all interrupts in kernel mode
+	SETGATE(idt[T_DIVIDE], 0, GD_KT, handler0, 0);
+	SETGATE(idt[T_DEBUG], 0, GD_KT, handler1, 0);
+	SETGATE(idt[T_BRKPT], 0, GD_KT, handler3, 3);	// user can use breakpoint 
+	SETGATE(idt[T_OFLOW], 0, GD_KT, handler4, 0);
+	SETGATE(idt[T_BOUND], 0, GD_KT, handler5, 0);
+	SETGATE(idt[T_ILLOP], 0, GD_KT, handler6, 0);
+	SETGATE(idt[T_DEVICE], 0, GD_KT, handler7, 0);
+	SETGATE(idt[T_DBLFLT], 0, GD_KT, handler8, 0);
+	SETGATE(idt[T_TSS], 0, GD_KT, handler10, 0);
+	SETGATE(idt[T_SEGNP], 0, GD_KT, handler11, 0);
+	SETGATE(idt[T_STACK], 0, GD_KT, handler12, 0);
+	SETGATE(idt[T_GPFLT], 0, GD_KT, handler13, 0);
+	SETGATE(idt[T_PGFLT], 0, GD_KT, handler14, 0);
+	SETGATE(idt[T_FPERR], 0, GD_KT, handler16, 0);
+	SETGATE(idt[T_ALIGN], 0, GD_KT, handler17, 0);
+	SETGATE(idt[T_MCHK], 0, GD_KT, handler18, 0);
+    SETGATE(idt[T_SIMDERR], 0, GD_KT, handler19, 0);	
+    
+    // IRQs
+    SETGATE(idt[IRQ_OFFSET + IRQ_TIMER], 0, GD_KT, handler32, 0);
+    SETGATE(idt[IRQ_OFFSET + IRQ_KBD], 0, GD_KT, handler33, 0);
+    SETGATE(idt[IRQ_OFFSET + IRQ_SERIAL], 0, GD_KT, handler36, 0);
+    SETGATE(idt[IRQ_OFFSET + IRQ_SPURIOUS], 0, GD_KT, handler39, 0);
+    SETGATE(idt[IRQ_OFFSET + IRQ_IDE], 0, GD_KT, handler46, 0);
+    SETGATE(idt[IRQ_OFFSET + IRQ_ERROR], 0, GD_KT, handler51, 0);
+
+	SETGATE(idt[T_SYSCALL], 0, GD_KT, handler48, 3);	//syscall
 	// Per-CPU setup 
 	trap_init_percpu();
 }
@@ -228,37 +244,30 @@ trap_dispatch(struct Trapframe *tf)
 								tf->tf_regs.reg_ebx,
 								tf->tf_regs.reg_edi,
 								tf->tf_regs.reg_esi);
+        return;
+	case (IRQ_OFFSET + IRQ_TIMER):
+    	// Handle clock interrupts. Don't forget to acknowledge the
+        // interrupt using lapic_eoi() before calling the scheduler!
+        // LAB 4: Your code here.
+		lapic_eoi();
+		sched_yield();
 		return;
+    case IRQ_OFFSET + IRQ_SPURIOUS:
+        // Handle spurious interrupts
+        // The hardware sometimes raises these because of noise on the
+        // IRQ line or other reasons. We don't care.
+        cprintf("Spurious interrupt on irq 7\n");
+        print_trapframe(tf);
+        return;
 	default:
-			// Unexpected trap: The user process or the kernel has a bug.
-		print_trapframe(tf);
-		if (tf->tf_cs == GD_KT)
-			panic("unhandled trap in kernel");
-		else {
-			env_destroy(curenv);
-			return;
-		}
-	}
-	// Handle spurious interrupts
-	// The hardware sometimes raises these because of noise on the
-	// IRQ line or other reasons. We don't care.
-	if (tf->tf_trapno == IRQ_OFFSET + IRQ_SPURIOUS) {
-		cprintf("Spurious interrupt on irq 7\n");
-		print_trapframe(tf);
-		return;
-	}
-
-	// Handle clock interrupts. Don't forget to acknowledge the
-	// interrupt using lapic_eoi() before calling the scheduler!
-	// LAB 4: Your code here.
-
-	// Unexpected trap: The user process or the kernel has a bug.
-	print_trapframe(tf);
-	if (tf->tf_cs == GD_KT)
-		panic("unhandled trap in kernel");
-	else {
-		env_destroy(curenv);
-		return;
+        // Unexpected trap: The user process or the kernel has a bug.
+        print_trapframe(tf);
+        if (tf->tf_cs == GD_KT)
+            panic("unhandled trap in kernel");
+        else {
+            env_destroy(curenv);
+            return;
+        }
 	}
 }
 
